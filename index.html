@@ -244,6 +244,22 @@ function truncate(s, len = 300) {
   return s.length > len ? s.slice(0, len) + '...' : s;
 }
 
+// --- Get best userkey from user object ---
+function bestUserkey(user) {
+  // Prefer profileId
+  if (user.profileId) return `profileId:${user.profileId}`;
+  // Then look in userkeys array for a usable format
+  if (user.userkeys && user.userkeys.length > 0) {
+    // Prefer address, then service:x.com:<id>, then any
+    const addr = user.userkeys.find(k => k.startsWith('address:'));
+    if (addr) return addr;
+    const xId = user.userkeys.find(k => /^service:x\.com:\d+$/.test(k));
+    if (xId) return xId;
+    return user.userkeys[0];
+  }
+  return null;
+}
+
 // --- Resolve userkey from input ---
 async function resolveUser(input) {
   input = input.trim();
@@ -252,35 +268,35 @@ async function resolveUser(input) {
   if (input.startsWith('profileId:')) {
     const pid = input.split(':')[1];
     const user = await apiGet(`/user/by/profile-id/${pid}`);
-    return { user, userkey: input };
+    return { user, userkey: bestUserkey(user) || input };
   }
   if (input.startsWith('address:')) {
     const addr = input.split(':')[1];
     const user = await apiGet(`/user/by/address/${addr}`);
-    return { user, userkey: `profileId:${user.profileId}` };
+    return { user, userkey: bestUserkey(user) || input };
   }
   if (input.startsWith('service:')) {
-    // e.g. service:x.com:username:handle
     const parts = input.split(':');
     if (parts[2] === 'username') {
       const user = await apiGet(`/user/by/x/${parts[3]}`);
-      return { user, userkey: user.profileId ? `profileId:${user.profileId}` : input };
+      return { user, userkey: bestUserkey(user) || input };
     }
+    return { user: null, userkey: input };
   }
 
   // Auto-detect
   if (/^0x[a-fA-F0-9]{40}$/.test(input)) {
     const user = await apiGet(`/user/by/address/${input}`);
-    return { user, userkey: user.profileId ? `profileId:${user.profileId}` : `address:${input}` };
+    return { user, userkey: bestUserkey(user) || `address:${input}` };
   }
   if (/^\d+$/.test(input)) {
     const user = await apiGet(`/user/by/profile-id/${input}`);
-    return { user, userkey: `profileId:${input}` };
+    return { user, userkey: bestUserkey(user) || `profileId:${input}` };
   }
   // Assume Twitter username
   const username = input.replace(/^@/, '');
   const user = await apiGet(`/user/by/x/${username}`);
-  return { user, userkey: user.profileId ? `profileId:${user.profileId}` : `service:x.com:username:${username}` };
+  return { user, userkey: bestUserkey(user) || `service:x.com:username:${username}` };
 }
 
 // --- Score Ring ---
