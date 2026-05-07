@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ethos Trust Dashboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0a0f;--surface:#12121a;--surface2:#1a1a2e;--border:#2a2a3e;
+  --text:#e0e0ff;--text2:#8888aa;--accent:#00ff88;--accent2:#00cc6a;
+  --red:#ff4466;--yellow:#ffaa00;--blue:#4488ff;--purple:#aa44ff;
+  --glow:0 0 20px rgba(0,255,136,0.3);
+}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+a{color:var(--accent);text-decoration:none}
+.container{max-width:1200px;margin:0 auto;padding:20px}
+
+/* Header */
+.header{text-align:center;padding:40px 20px 30px;position:relative}
+.header::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:200px;height:3px;background:linear-gradient(90deg,transparent,var(--accent),transparent);border-radius:2px}
+.logo{font-size:2.5em;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-1px}
+.logo span{font-weight:300;opacity:0.7}
+.subtitle{color:var(--text2);margin-top:8px;font-size:0.95em}
+
+/* Search */
+.search-box{max-width:700px;margin:30px auto;position:relative}
+.search-box input{width:100%;padding:16px 60px 16px 20px;background:var(--surface);border:1px solid var(--border);border-radius:14px;color:var(--text);font-size:1em;outline:none;transition:all 0.3s}
+.search-box input:focus{border-color:var(--accent);box-shadow:var(--glow)}
+.search-box input::placeholder{color:var(--text2)}
+.search-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:10px;width:44px;height:44px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.2em;transition:all 0.3s}
+.search-btn:hover{transform:translateY(-50%) scale(1.05);box-shadow:var(--glow)}
+.search-hints{display:flex;gap:8px;margin-top:10px;justify-content:center;flex-wrap:wrap}
+.hint{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:0.8em;color:var(--text2);cursor:pointer;transition:all 0.2s}
+.hint:hover{border-color:var(--accent);color:var(--accent)}
+
+/* Stats Banner */
+.stats-banner{display:flex;gap:16px;justify-content:center;margin:20px 0;flex-wrap:wrap}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 24px;text-align:center;min-width:140px;transition:all 0.3s}
+.stat-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.stat-val{font-size:1.8em;font-weight:700;color:var(--accent)}
+.stat-label{font-size:0.75em;color:var(--text2);margin-top:4px;text-transform:uppercase;letter-spacing:1px}
+
+/* Loading */
+.loading{text-align:center;padding:60px 20px;display:none}
+.loading.show{display:block}
+.spinner{width:48px;height:48px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Profile Card */
+.profile-section{display:none}
+.profile-section.show{display:block}
+.profile-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:30px;margin-bottom:20px;display:flex;gap:24px;align-items:center;flex-wrap:wrap}
+.avatar{width:80px;height:80px;border-radius:50%;border:3px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:2em;background:var(--surface2);overflow:hidden;flex-shrink:0}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.profile-info{flex:1;min-width:200px}
+.profile-name{font-size:1.6em;font-weight:700}
+.profile-handle{color:var(--text2);margin-top:4px}
+.profile-meta{display:flex;gap:16px;margin-top:10px;flex-wrap:wrap}
+.meta-item{font-size:0.85em;color:var(--text2)}
+.meta-item strong{color:var(--text)}
+.score-display{text-align:center;min-width:120px}
+.score-ring{position:relative;width:100px;height:100px;margin:0 auto}
+.score-ring svg{transform:rotate(-90deg)}
+.score-ring circle{fill:none;stroke-width:6}
+.score-ring .bg{stroke:var(--border)}
+.score-ring .fg{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset 1s ease}
+.score-number{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:1.6em;font-weight:800}
+.score-label{font-size:0.75em;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-top:6px}
+.level-badge{display:inline-block;padding:3px 10px;border-radius:6px;font-size:0.75em;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-top:6px}
+.level-distinguished{background:rgba(0,255,136,0.15);color:var(--accent)}
+.level-reputable{background:rgba(68,136,255,0.15);color:var(--blue)}
+.level-established{background:rgba(170,68,255,0.15);color:var(--purple)}
+.level-known{background:rgba(255,170,0,0.15);color:var(--yellow)}
+.level-marginal{background:rgba(255,68,102,0.15);color:var(--red)}
+
+/* XP & Influence */
+.xp-bar{margin-top:12px;background:var(--surface2);border-radius:8px;padding:10px 14px;display:flex;gap:20px;flex-wrap:wrap}
+.xp-item{font-size:0.8em}
+.xp-item span{color:var(--accent);font-weight:700}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;margin-bottom:20px;background:var(--surface);border-radius:12px;padding:4px;border:1px solid var(--border);overflow-x:auto}
+.tab{padding:10px 20px;border-radius:8px;cursor:pointer;font-size:0.9em;color:var(--text2);transition:all 0.2s;white-space:nowrap;border:none;background:none}
+.tab:hover{color:var(--text)}
+.tab.active{background:var(--accent);color:var(--bg);font-weight:600}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+/* Activity Cards */
+.activity-list{display:flex;flex-direction:column;gap:12px}
+.activity-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 20px;transition:all 0.2s}
+.activity-card:hover{border-color:var(--accent);transform:translateX(4px)}
+.activity-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px}
+.activity-type{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:6px;font-size:0.75em;font-weight:600;text-transform:uppercase;letter-spacing:0.5px}
+.type-review{background:rgba(0,255,136,0.15);color:var(--accent)}
+.type-vouch{background:rgba(68,136,255,0.15);color:var(--blue)}
+.type-unvouch{background:rgba(255,68,102,0.15);color:var(--red)}
+.type-slash{background:rgba(255,68,102,0.15);color:var(--red)}
+.type-reply{background:rgba(170,68,255,0.15);color:var(--purple)}
+.type-vote{background:rgba(255,170,0,0.15);color:var(--yellow)}
+.type-other{background:rgba(136,136,170,0.15);color:var(--text2)}
+.activity-time{font-size:0.8em;color:var(--text2)}
+.activity-body{color:var(--text);line-height:1.6;font-size:0.95em}
+.activity-body p{margin-bottom:6px}
+.activity-footer{display:flex;gap:16px;margin-top:10px;font-size:0.8em;color:var(--text2)}
+.activity-footer span{display:flex;align-items:center;gap:4px}
+
+/* Sentiment */
+.sentiment{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:0.75em;font-weight:600}
+.sentiment-positive{background:rgba(0,255,136,0.15);color:var(--accent)}
+.sentiment-negative{background:rgba(255,68,102,0.15);color:var(--red)}
+.sentiment-neutral{background:rgba(255,170,0,0.15);color:var(--yellow)}
+
+/* Summary Card */
+.summary-card{background:linear-gradient(135deg,var(--surface),var(--surface2));border:1px solid var(--border);border-radius:14px;padding:24px;line-height:1.7}
+.summary-card h3{color:var(--accent);margin-bottom:12px;font-size:1.1em}
+.summary-card p{color:var(--text);font-size:0.95em}
+.summary-authors{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap}
+.author-chip{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:0.8em;color:var(--text2)}
+
+/* Empty State */
+.empty{text-align:center;padding:40px;color:var(--text2)}
+.empty-icon{font-size:3em;margin-bottom:12px;opacity:0.5}
+
+/* Error */
+.error-msg{background:rgba(255,68,102,0.1);border:1px solid rgba(255,68,102,0.3);border-radius:12px;padding:16px 20px;color:var(--red);text-align:center;display:none}
+.error-msg.show{display:block}
+
+/* Footer */
+.footer{text-align:center;padding:40px 20px;color:var(--text2);font-size:0.8em}
+.footer a{color:var(--accent)}
+
+/* Responsive */
+@media(max-width:600px){
+  .logo{font-size:1.8em}
+  .profile-card{flex-direction:column;text-align:center}
+  .score-display{min-width:auto}
+  .tabs{flex-wrap:nowrap;overflow-x:auto}
+  .tab{padding:8px 14px;font-size:0.8em}
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <div class="logo">Ethos <span>Trust Dashboard</span></div>
+    <p class="subtitle">Explore reputation & trust on the Ethos Network</p>
+  </div>
+
+  <div class="search-box">
+    <input type="text" id="searchInput" placeholder="Enter wallet address, Twitter handle, or profile ID..." autocomplete="off">
+    <button class="search-btn" onclick="doSearch()" title="Search">&#128269;</button>
+  </div>
+  <div class="search-hints">
+    <span class="hint" onclick="fillSearch('VitalikButerin')">@VitalikButerin</span>
+    <span class="hint" onclick="fillSearch('0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045')">vitalik.eth</span>
+    <span class="hint" onclick="fillSearch('profileId:1')">Profile #1 (Ethos)</span>
+    <span class="hint" onclick="fillSearch('profileId:10')">Profile #10</span>
+  </div>
+
+  <div id="systemStats" class="stats-banner"></div>
+  <div id="errorMsg" class="error-msg"></div>
+  <div id="loading" class="loading"><div class="spinner"></div><p>Fetching data from Ethos Network...</p></div>
+
+  <div id="profileSection" class="profile-section">
+    <div id="profileCard" class="profile-card"></div>
+
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-tab="activities">Activities</button>
+      <button class="tab" data-tab="reviews">Reviews</button>
+      <button class="tab" data-tab="vouches">Vouches</button>
+      <button class="tab" data-tab="summary">AI Summary</button>
+    </div>
+
+    <div id="tab-activities" class="tab-content active"></div>
+    <div id="tab-reviews" class="tab-content"></div>
+    <div id="tab-vouches" class="tab-content"></div>
+    <div id="tab-summary" class="tab-content"></div>
+  </div>
+</div>
+
+<div class="footer">
+  Powered by <a href="https://developers.ethos.network/" target="_blank">Ethos Network API v2</a> &middot; Built with &#10084;
+</div>
+
+<script>
+const BASE = 'https://api.ethos.network/api/v2';
+const CLIENT = 'ethos-trust-dashboard@1.0.0';
+const hdrs = { 'X-Ethos-Client': CLIENT, 'Content-Type': 'application/json' };
+
+// --- API helpers ---
+async function apiGet(path) {
+  const res = await fetch(BASE + path, { headers: hdrs });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(err.message || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+async function apiPost(path, body) {
+  const res = await fetch(BASE + path, {
+    method: 'POST',
+    headers: hdrs,
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(err.message || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+function $(id) { return document.getElementById(id); }
+function show(id) { $(id).classList.add('show'); }
+function hide(id) { $(id).classList.remove('show'); }
+
+function timeAgo(dateStr) {
+  if (!dateStr) return '';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(dateStr).toLocaleDateString();
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+function truncate(s, len = 300) {
+  if (!s) return '';
+  return s.length > len ? s.slice(0, len) + '...' : s;
+}
+
+// --- Resolve userkey from input ---
+async function resolveUser(input) {
+  input = input.trim();
+
+  // Already a userkey format
+  if (input.startsWith('profileId:')) {
+    const pid = input.split(':')[1];
+    const user = await apiGet(`/user/by/profile-id/${pid}`);
+    return { user, userkey: input };
+  }
+  if (input.startsWith('address:')) {
+    const addr = input.split(':')[1];
+    const user = await apiGet(`/user/by/address/${addr}`);
+    return { user, userkey: `profileId:${user.profileId}` };
+  }
+  if (input.startsWith('service:')) {
+    // e.g. service:x.com:username:handle
+    const parts = input.split(':');
+    if (parts[2] === 'username') {
+      const user = await apiGet(`/user/by/x/${parts[3]}`);
+      return { user, userkey: user.profileId ? `profileId:${user.profileId}` : input };
+    }
+  }
+
+  // Auto-detect
+  if (/^0x[a-fA-F0-9]{40}$/.test(input)) {
+    const user = await apiGet(`/user/by/address/${input}`);
+    return { user, userkey: user.profileId ? `profileId:${user.profileId}` : `address:${input}` };
+  }
+  if (/^\d+$/.test(input)) {
+    const user = await apiGet(`/user/by/profile-id/${input}`);
+    return { user, userkey: `profileId:${input}` };
+  }
+  // Assume Twitter username
+  const username = input.replace(/^@/, '');
+  const user = await apiGet(`/user/by/x/${username}`);
+  return { user, userkey: user.profileId ? `profileId:${user.profileId}` : `service:x.com:username:${username}` };
+}
+
+// --- Score Ring ---
+function scoreRing(score, level) {
+  const maxScore = 2800;
+  const pct = Math.min(score / maxScore, 1);
+  const circ = 2 * Math.PI * 42;
+  const offset = circ * (1 - pct);
+  const color = score >= 1600 ? 'var(--accent)' : score >= 800 ? 'var(--yellow)' : 'var(--red)';
+  const levelCls = {
+    'distinguished': 'level-distinguished',
+    'reputable': 'level-reputable',
+    'established': 'level-established',
+    'known': 'level-known',
+    'marginal': 'level-marginal'
+  }[level] || 'level-other';
+
+  return `
+    <div class="score-ring">
+      <svg width="100" height="100" viewBox="0 0 100 100">
+        <circle class="bg" cx="50" cy="50" r="42"/>
+        <circle class="fg" cx="50" cy="50" r="42"
+          stroke="${color}" stroke-dasharray="${circ}" stroke-dashoffset="${offset}"/>
+      </svg>
+      <div class="score-number" style="color:${color}">${score.toLocaleString()}</div>
+    </div>
+    <div class="score-label">Trust Score</div>
+    ${level ? `<span class="level-badge ${levelCls}">${escHtml(level)}</span>` : ''}`;
+}
+
+// --- Type badge ---
+function typeBadge(type) {
+  const t = (type || '').toLowerCase();
+  let cls = 'type-other', icon = '&#9679;';
+  if (t.includes('review')) { cls = 'type-review'; icon = '&#9733;'; }
+  else if (t === 'vouch' || t === 'vouch-v2') { cls = 'type-vouch'; icon = '&#10003;'; }
+  else if (t === 'unvouch' || t === 'unvouch-v2') { cls = 'type-unvouch'; icon = '&#10007;'; }
+  else if (t.includes('slash')) { cls = 'type-slash'; icon = '&#9888;'; }
+  else if (t.includes('reply')) { cls = 'type-reply'; icon = '&#8618;'; }
+  else if (t.includes('vote')) { cls = 'type-vote'; icon = '&#9650;'; }
+  return `<span class="activity-type ${cls}">${icon} ${escHtml(type)}</span>`;
+}
+
+// --- Sentiment badge ---
+function sentimentBadge(s) {
+  if (!s) return '';
+  const sl = String(s).toLowerCase();
+  const cls = sl === 'positive' ? 'sentiment-positive' : sl === 'negative' ? 'sentiment-negative' : 'sentiment-neutral';
+  const icon = sl === 'positive' ? '&#10003;' : sl === 'negative' ? '&#10007;' : '&#9679;';
+  return `<span class="sentiment ${cls}">${icon} ${escHtml(s)}</span>`;
+}
+
+// --- Fill search ---
+function fillSearch(val) {
+  $('searchInput').value = val;
+  doSearch();
+}
+
+// --- Tab switching ---
+document.getElementById('tabs').addEventListener('click', e => {
+  const tab = e.target.closest('.tab');
+  if (!tab) return;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  $(`tab-${tab.dataset.tab}`).classList.add('active');
+});
+
+// --- Main Search ---
+async function doSearch() {
+  const raw = $('searchInput').value.trim();
+  if (!raw) return;
+
+  hide('profileSection');
+  hide('errorMsg');
+  $('systemStats').innerHTML = '';
+  show('loading');
+
+  try {
+    const { user, userkey } = await resolveUser(raw);
+
+    // Parallel: score + activities + reviews + vouches
+    const [score, activities, reviews, vouches] = await Promise.all([
+      apiGet(`/score/userkey?userkey=${encodeURIComponent(userkey)}`).catch(() => null),
+      apiPost('/activities/profile/all', { userkey, limit: 30 }).catch(() => ({ values: [] })),
+      apiPost('/activities/profile/received', { userkey, filter: ['review'], limit: 20 }).catch(() => ({ values: [] })),
+      apiPost('/activities/profile/received', { userkey, filter: ['vouch', 'vouch-v2'], limit: 20 }).catch(() => ({ values: [] })),
+    ]);
+
+    hide('loading');
+
+    // Profile Card
+    renderProfile(user, score);
+    show('profileSection');
+
+    // Activities tab
+    renderActivities(activities.values || []);
+
+    // Reviews tab
+    renderReviews(reviews.values || []);
+
+    // Vouches tab
+    renderVouches(vouches.values || []);
+
+    // AI Summary tab
+    loadSummary(userkey);
+
+  } catch (err) {
+    hide('loading');
+    $('errorMsg').textContent = err.message;
+    show('errorMsg');
+  }
+}
+
+// --- Render Profile ---
+function renderProfile(user, scoreData) {
+  const name = user?.displayName || user?.username || 'Unknown';
+  const username = user?.username ? `@${user.username}` : '';
+  const avatarUrl = user?.avatarUrl || '';
+  const profileId = user?.profileId || '—';
+  const status = user?.status || '';
+  const xpTotal = user?.xpTotal || 0;
+  const influence = user?.influenceFactor || 0;
+  const influencePct = user?.influenceFactorPercentile || 0;
+  const score = scoreData?.score ?? user?.score ?? 0;
+  const level = scoreData?.level || '';
+
+  let avatarHtml = avatarUrl
+    ? `<img src="${escHtml(avatarUrl)}" alt="${escHtml(name)}" onerror="this.parentElement.innerHTML='&#128100;'">`
+    : '&#128100;';
+
+  $('profileCard').innerHTML = `
+    <div class="avatar">${avatarHtml}</div>
+    <div class="profile-info">
+      <div class="profile-name">${escHtml(name)}</div>
+      ${username ? `<div class="profile-handle">${escHtml(username)}</div>` : ''}
+      <div class="profile-meta">
+        <span class="meta-item"><strong>ID:</strong> #${escHtml(String(profileId))}</span>
+        ${status ? `<span class="meta-item"><strong>Status:</strong> ${escHtml(status)}</span>` : ''}
+      </div>
+      <div class="xp-bar">
+        <div class="xp-item">XP: <span>${xpTotal.toLocaleString()}</span></div>
+        <div class="xp-item">Influence: <span>${influence}</span> (top ${100 - influencePct}%)</div>
+      </div>
+    </div>
+    <div class="score-display">${scoreRing(score, level)}</div>`;
+}
+
+// --- Render Activities ---
+function renderActivities(items) {
+  const el = $('tab-activities');
+  if (!items || items.length === 0) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">&#128196;</div>No activities found</div>';
+    return;
+  }
+  el.innerHTML = `<div class="activity-list">${items.map(item => {
+    const a = item.data || item;
+    const type = item.type || a.activityType || 'unknown';
+    const content = a.comment || a.content || a.description || '';
+    return `
+    <div class="activity-card">
+      <div class="activity-header">
+        ${typeBadge(type)}
+        ${a.score ? sentimentBadge(a.score) : ''}
+        <span class="activity-time">${timeAgo(a.createdAt || a.timestamp)}</span>
+      </div>
+      <div class="activity-body">
+        ${content ? `<p>${escHtml(truncate(content, 300))}</p>` : ''}
+        ${a.title ? `<p><strong>${escHtml(a.title)}</strong></p>` : ''}
+      </div>
+      <div class="activity-footer">
+        ${a.authorProfileId ? `<span>Author: #${a.authorProfileId}</span>` : ''}
+        ${a.subjectProfileId ? `<span>Subject: #${a.subjectProfileId}</span>` : ''}
+        ${a.deposited ? `<span>Staked: ${(parseInt(a.deposited)/1e18).toFixed(2)} ETH</span>` : ''}
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// --- Render Reviews ---
+function renderReviews(items) {
+  const el = $('tab-reviews');
+  if (!items || items.length === 0) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">&#9733;</div>No reviews found</div>';
+    return;
+  }
+  el.innerHTML = `<div class="activity-list">${items.map(item => {
+    const r = item.data || item;
+    return `
+    <div class="activity-card">
+      <div class="activity-header">
+        ${sentimentBadge(r.score)}
+        <span class="activity-time">${timeAgo(r.createdAt || r.timestamp)}</span>
+      </div>
+      <div class="activity-body">
+        ${r.comment ? `<p>${escHtml(truncate(r.comment, 400))}</p>` : ''}
+      </div>
+      <div class="activity-footer">
+        ${r.authorProfileId ? `<span>by Profile #${r.authorProfileId}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// --- Render Vouches ---
+function renderVouches(items) {
+  const el = $('tab-vouches');
+  if (!items || items.length === 0) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">&#10003;</div>No vouches found</div>';
+    return;
+  }
+  el.innerHTML = `<div class="activity-list">${items.map(item => {
+    const v = item.data || item;
+    const ethAmount = v.deposited ? (parseInt(v.deposited) / 1e18).toFixed(3) : null;
+    return `
+    <div class="activity-card">
+      <div class="activity-header">
+        <span class="activity-type type-vouch">&#10003; Vouch</span>
+        <span class="activity-time">${timeAgo(v.createdAt || v.timestamp)}</span>
+      </div>
+      <div class="activity-body">
+        ${v.comment ? `<p>${escHtml(truncate(v.comment, 300))}</p>` : '<p><em>Staked vouch</em></p>'}
+      </div>
+      <div class="activity-footer">
+        ${v.authorProfileId ? `<span>by Profile #${v.authorProfileId}</span>` : ''}
+        ${ethAmount ? `<span>Staked: ${ethAmount} ETH</span>` : ''}
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// --- AI Summary ---
+async function loadSummary(userkey) {
+  const el = $('tab-summary');
+  el.innerHTML = '<div class="loading show"><div class="spinner"></div><p>Generating AI summary...</p></div>';
+  try {
+    const data = await apiGet(`/llm/activity-summary?userkey=${encodeURIComponent(userkey)}`);
+    if (data && data.summary) {
+      el.innerHTML = `
+        <div class="summary-card">
+          <h3>&#129504; AI Activity Summary</h3>
+          <p>${escHtml(data.summary)}</p>
+          ${data.topAuthors?.length ? `
+            <div style="margin-top:16px">
+              <strong style="color:var(--text2);font-size:0.85em">Top Authors:</strong>
+              <div class="summary-authors">
+                ${data.topAuthors.map(a => `<span class="author-chip">${escHtml(a)}</span>`).join('')}
+              </div>
+            </div>` : ''}
+          <p style="margin-top:12px;font-size:0.8em;color:var(--text2)">
+            ${data.activityCount ?? 0} activities analyzed &middot; Generated ${data.generatedAt ? timeAgo(data.generatedAt) : 'recently'}
+          </p>
+        </div>`;
+    } else {
+      el.innerHTML = '<div class="empty"><div class="empty-icon">&#129504;</div>No AI summary available yet</div>';
+    }
+  } catch {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">&#129504;</div>AI summary not available for this user</div>';
+  }
+}
+
+// --- System Stats (from score distribution) ---
+async function loadStats() {
+  try {
+    const data = await apiGet('/stats/score-distribution');
+    if (data) {
+      const total = Object.values(data).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0);
+      $('systemStats').innerHTML = `
+        <div class="stat-card"><div class="stat-val">${(total || 0).toLocaleString()}</div><div class="stat-label">Total Users</div></div>
+        <div class="stat-card"><div class="stat-val">${(data.distinguished || 0).toLocaleString()}</div><div class="stat-label">Distinguished</div></div>
+        <div class="stat-card"><div class="stat-val">${(data.reputable || 0).toLocaleString()}</div><div class="stat-label">Reputable</div></div>
+        <div class="stat-card"><div class="stat-val">${(data.established || 0).toLocaleString()}</div><div class="stat-label">Established</div></div>`;
+    }
+  } catch { /* ignore */ }
+}
+
+// --- Enter key ---
+$('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+
+// --- Init ---
+loadStats();
+</script>
+</body>
+</html>
