@@ -219,7 +219,9 @@ function hide(id) { $(id).classList.remove('show'); }
 
 function timeAgo(dateStr) {
   if (!dateStr) return '';
-  const diff = Date.now() - new Date(dateStr).getTime();
+  // Handle Unix timestamps (seconds) and ISO strings
+  const ts = typeof dateStr === 'number' ? dateStr * 1000 : new Date(dateStr).getTime();
+  const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;
@@ -544,13 +546,18 @@ async function loadSummary(userkey) {
 async function loadStats() {
   try {
     const data = await apiGet('/stats/score-distribution');
-    if (data) {
-      const total = Object.values(data).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0);
+    if (data && data.distribution) {
+      const dist = data.distribution;
+      const total = dist.reduce((s, d) => s + (d.profileCount || 0) + (d.nonProfileCount || 0), 0);
+      const get = level => dist.find(d => d.level === level);
+      const distLevel = get('distinguished');
+      const repLevel = get('reputable');
+      const estLevel = get('established');
       $('systemStats').innerHTML = `
-        <div class="stat-card"><div class="stat-val">${(total || 0).toLocaleString()}</div><div class="stat-label">Total Users</div></div>
-        <div class="stat-card"><div class="stat-val">${(data.distinguished || 0).toLocaleString()}</div><div class="stat-label">Distinguished</div></div>
-        <div class="stat-card"><div class="stat-val">${(data.reputable || 0).toLocaleString()}</div><div class="stat-label">Reputable</div></div>
-        <div class="stat-card"><div class="stat-val">${(data.established || 0).toLocaleString()}</div><div class="stat-label">Established</div></div>`;
+        <div class="stat-card"><div class="stat-val">${total.toLocaleString()}</div><div class="stat-label">Total Users</div></div>
+        <div class="stat-card"><div class="stat-val">${((distLevel?.profileCount || 0) + (distLevel?.nonProfileCount || 0)).toLocaleString()}</div><div class="stat-label">Distinguished</div></div>
+        <div class="stat-card"><div class="stat-val">${((repLevel?.profileCount || 0) + (repLevel?.nonProfileCount || 0)).toLocaleString()}</div><div class="stat-label">Reputable</div></div>
+        <div class="stat-card"><div class="stat-val">${((estLevel?.profileCount || 0) + (estLevel?.nonProfileCount || 0)).toLocaleString()}</div><div class="stat-label">Established</div></div>`;
     }
   } catch { /* ignore */ }
 }
