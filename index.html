@@ -131,6 +131,20 @@ a{color:var(--accent);text-decoration:none}
 .footer{text-align:center;padding:40px 20px;color:var(--text2);font-size:0.8em}
 .footer a{color:var(--accent)}
 
+/* Charts */
+.chart-section{margin-bottom:24px}
+.chart-title{font-size:1.1em;font-weight:700;color:var(--accent);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.chart-container{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;position:relative}
+.chart-container canvas{width:100%!important;height:auto!important;display:block}
+.chart-tooltip{position:absolute;background:var(--surface2);border:1px solid var(--accent);border-radius:8px;padding:6px 12px;font-size:0.8em;color:var(--text);pointer-events:none;display:none;z-index:10;white-space:nowrap;box-shadow:var(--glow)}
+.chart-legend{display:flex;gap:16px;margin-top:12px;justify-content:center;flex-wrap:wrap;font-size:0.8em;color:var(--text2)}
+.chart-legend span{display:flex;align-items:center;gap:4px}
+.chart-legend .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.chart-stats{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;justify-content:center}
+.chart-stat{background:var(--surface2);border-radius:8px;padding:8px 14px;text-align:center}
+.chart-stat .val{font-size:1.1em;font-weight:700;color:var(--accent)}
+.chart-stat .lbl{font-size:0.7em;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-top:2px}
+
 /* Responsive */
 @media(max-width:600px){
   .logo{font-size:1.8em}
@@ -138,6 +152,8 @@ a{color:var(--accent);text-decoration:none}
   .score-display{min-width:auto}
   .tabs{flex-wrap:nowrap;overflow-x:auto}
   .tab{padding:8px 14px;font-size:0.8em}
+  .chart-container{padding:12px}
+  .chart-stats{gap:8px}
 }
 </style>
 </head>
@@ -171,12 +187,14 @@ a{color:var(--accent);text-decoration:none}
       <button class="tab active" data-tab="activities">Activities</button>
       <button class="tab" data-tab="reviews">Reviews</button>
       <button class="tab" data-tab="vouches">Vouches</button>
+      <button class="tab" data-tab="charts">&#128200; Charts</button>
       <button class="tab" data-tab="summary">AI Summary</button>
     </div>
 
     <div id="tab-activities" class="tab-content active"></div>
     <div id="tab-reviews" class="tab-content"></div>
     <div id="tab-vouches" class="tab-content"></div>
+    <div id="tab-charts" class="tab-content"></div>
     <div id="tab-summary" class="tab-content"></div>
   </div>
 </div>
@@ -404,6 +422,10 @@ async function doSearch() {
     // AI Summary tab
     loadSummary(userkey);
 
+    // Charts tab
+    loadScoreHistory(userkey);
+    loadScoreDistribution();
+
   } catch (err) {
     hide('loading');
     $('errorMsg').textContent = err.message;
@@ -556,6 +578,332 @@ async function loadSummary(userkey) {
   } catch {
     el.innerHTML = '<div class="empty"><div class="empty-icon">&#129504;</div>AI summary not available for this user</div>';
   }
+}
+
+// --- Score History Chart ---
+async function loadScoreHistory(userkey) {
+  try {
+    const data = await apiGet(`/score/history?userkey=${encodeURIComponent(userkey)}&days=90`);
+    if (!data || !data.length) return;
+    renderScoreHistory(data);
+  } catch { /* ignore */ }
+}
+
+function renderScoreHistory(data) {
+  const el = $('tab-charts');
+  // Build charts HTML
+  let html = `<div class="chart-section">
+    <div class="chart-title">&#128200; Score History (90 Days)</div>
+    <div class="chart-container">
+      <canvas id="scoreHistoryCanvas" width="800" height="300"></canvas>
+      <div id="scoreHistoryTooltip" class="chart-tooltip"></div>
+    </div>`;
+
+  // Stats
+  const scores = data.map(d => d.score);
+  const minS = Math.min(...scores);
+  const maxS = Math.max(...scores);
+  const avgS = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+  const change = scores[scores.length - 1] - scores[0];
+  const changeStr = change >= 0 ? `+${change}` : `${change}`;
+  const changeColor = change >= 0 ? 'var(--accent)' : 'var(--red)';
+
+  html += `<div class="chart-stats">
+    <div class="chart-stat"><div class="val">${scores[scores.length - 1].toLocaleString()}</div><div class="lbl">Current</div></div>
+    <div class="chart-stat"><div class="val">${maxS.toLocaleString()}</div><div class="lbl">High</div></div>
+    <div class="chart-stat"><div class="val">${minS.toLocaleString()}</div><div class="lbl">Low</div></div>
+    <div class="chart-stat"><div class="val">${avgS.toLocaleString()}</div><div class="lbl">Average</div></div>
+    <div class="chart-stat"><div class="val" style="color:${changeColor}">${changeStr}</div><div class="lbl">Change</div></div>
+  </div></div>`;
+
+  // Add distribution placeholder
+  html += `<div id="distChartWrap"></div>`;
+  el.innerHTML = html;
+
+  // Draw the chart
+  setTimeout(() => drawLineChart(data), 50);
+}
+
+function drawLineChart(data) {
+  const canvas = document.getElementById('scoreHistoryCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const W = 800, H = 300;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(dpr, dpr);
+
+  const pad = { top: 20, right: 20, bottom: 40, left: 60 };
+  const cw = W - pad.left - pad.right;
+  const ch = H - pad.top - pad.bottom;
+
+  const scores = data.map(d => d.score);
+  const dates = data.map(d => new Date(d.date));
+  const minS = Math.min(...scores) - 10;
+  const maxS = Math.max(...scores) + 10;
+  const range = maxS - minS || 1;
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(42,42,62,0.6)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (ch / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(W - pad.right, y);
+    ctx.stroke();
+    // Y labels
+    const val = Math.round(maxS - (range / 4) * i);
+    ctx.fillStyle = '#8888aa';
+    ctx.font = '11px system-ui';
+    ctx.textAlign = 'right';
+    ctx.fillText(val.toLocaleString(), pad.left - 8, y + 4);
+  }
+
+  // X labels
+  ctx.fillStyle = '#8888aa';
+  ctx.font = '10px system-ui';
+  ctx.textAlign = 'center';
+  const step = Math.max(1, Math.floor(data.length / 6));
+  for (let i = 0; i < data.length; i += step) {
+    const x = pad.left + (i / (data.length - 1)) * cw;
+    const d = dates[i];
+    ctx.fillText(`${d.getMonth() + 1}/${d.getDate()}`, x, H - pad.bottom + 20);
+  }
+
+  // Line gradient
+  const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + ch);
+  grad.addColorStop(0, 'rgba(0,255,136,0.3)');
+  grad.addColorStop(1, 'rgba(0,255,136,0.01)');
+
+  // Area fill
+  ctx.beginPath();
+  for (let i = 0; i < data.length; i++) {
+    const x = pad.left + (i / (data.length - 1)) * cw;
+    const y = pad.top + ch - ((scores[i] - minS) / range) * ch;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.lineTo(pad.left + cw, pad.top + ch);
+  ctx.lineTo(pad.left, pad.top + ch);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.strokeStyle = '#00ff88';
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round';
+  for (let i = 0; i < data.length; i++) {
+    const x = pad.left + (i / (data.length - 1)) * cw;
+    const y = pad.top + ch - ((scores[i] - minS) / range) * ch;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Data points
+  for (let i = 0; i < data.length; i++) {
+    const x = pad.left + (i / (data.length - 1)) * cw;
+    const y = pad.top + ch - ((scores[i] - minS) / range) * ch;
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#00ff88';
+    ctx.fill();
+  }
+
+  // Hover interaction
+  const tooltip = document.getElementById('scoreHistoryTooltip');
+  canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (W / rect.width);
+    const idx = Math.round(((mx - pad.left) / cw) * (data.length - 1));
+    if (idx < 0 || idx >= data.length) { tooltip.style.display = 'none'; return; }
+    const x = pad.left + (idx / (data.length - 1)) * cw;
+    const y = pad.top + ch - ((scores[idx] - minS) / range) * ch;
+    const d = dates[idx];
+    tooltip.innerHTML = `<strong>${d.toLocaleDateString()}</strong><br>Score: <strong>${scores[idx].toLocaleString()}</strong>`;
+    tooltip.style.display = 'block';
+    const canvasRect = canvas.getBoundingClientRect();
+    const tx = (x / W) * canvasRect.width;
+    const ty = (y / H) * canvasRect.height;
+    tooltip.style.left = (tx + 10) + 'px';
+    tooltip.style.top = (ty - 40) + 'px';
+  });
+  canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+}
+
+// --- Score Distribution Chart ---
+async function loadScoreDistribution() {
+  try {
+    const data = await apiGet('/stats/score-distribution');
+    if (data && data.distribution) {
+      renderScoreDistribution(data);
+    }
+  } catch { /* ignore */ }
+}
+
+function renderScoreDistribution(data) {
+  const el = document.getElementById('distChartWrap');
+  if (!el) return;
+
+  const dist = data.distribution;
+  const total = data.totals?.totalUsers || 0;
+
+  let html = `<div class="chart-section">
+    <div class="chart-title">&#127760; Score Distribution (All Network)</div>
+    <div class="chart-container">
+      <canvas id="distCanvas" width="800" height="320"></canvas>
+      <div id="distTooltip" class="chart-tooltip"></div>
+    </div>
+    <div class="chart-stats">
+      <div class="chart-stat"><div class="val">${total.toLocaleString()}</div><div class="lbl">Total Users</div></div>
+      <div class="chart-stat"><div class="val">${(data.totals?.totalProfiles || 0).toLocaleString()}</div><div class="lbl">Profiles</div></div>
+    </div>
+  </div>`;
+  el.innerHTML = html;
+
+  setTimeout(() => drawBarChart(dist), 50);
+}
+
+function drawBarChart(dist) {
+  const canvas = document.getElementById('distCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const W = 800, H = 320;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(dpr, dpr);
+
+  const pad = { top: 20, right: 20, bottom: 60, left: 70 };
+  const cw = W - pad.left - pad.right;
+  const ch = H - pad.top - pad.bottom;
+
+  // Log scale for better visibility (huge gap between neutral and others)
+  const totals = dist.map(d => d.profileCount + d.nonProfileCount);
+  const maxTotal = Math.max(...totals);
+  const barW = cw / dist.length * 0.7;
+  const gap = cw / dist.length * 0.3;
+
+  // Level colors
+  const levelColors = {
+    untrusted: '#ff4466', questionable: '#ff6644', neutral: '#ffaa00',
+    known: '#4488ff', established: '#aa44ff', reputable: '#00cc6a',
+    exemplary: '#00ff88', distinguished: '#00ffaa', revered: '#00ffdd', renowned: '#ffffff'
+  };
+
+  // Grid
+  ctx.strokeStyle = 'rgba(42,42,62,0.6)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (ch / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(W - pad.right, y);
+    ctx.stroke();
+    const val = Math.round(maxTotal * (1 - i / 4));
+    ctx.fillStyle = '#8888aa';
+    ctx.font = '11px system-ui';
+    ctx.textAlign = 'right';
+    ctx.fillText(val.toLocaleString(), pad.left - 8, y + 4);
+  }
+
+  // Bars
+  const barData = [];
+  for (let i = 0; i < dist.length; i++) {
+    const d = dist[i];
+    const total = d.profileCount + d.nonProfileCount;
+    if (total === 0) continue;
+    const x = pad.left + (i / dist.length) * cw + gap / 2;
+    const barH = (total / maxTotal) * ch;
+    const y = pad.top + ch - barH;
+    const color = levelColors[d.level] || '#8888aa';
+
+    // Gradient bar
+    const grad = ctx.createLinearGradient(x, y, x, pad.top + ch);
+    grad.addColorStop(0, color);
+    grad.addColorStop(1, color + '44');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.roundRect(x, y, barW, barH, [4, 4, 0, 0]);
+    ctx.fill();
+
+    // Glow effect
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 8;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Profile count overlay (smaller lighter bar)
+    if (d.profileCount > 0) {
+      const profH = (d.profileCount / maxTotal) * ch;
+      const profY = pad.top + ch - profH;
+      ctx.fillStyle = '#ffffff33';
+      ctx.beginPath();
+      ctx.roundRect(x, profY, barW, profH, [4, 4, 0, 0]);
+      ctx.fill();
+    }
+
+    // X label
+    ctx.save();
+    ctx.translate(x + barW / 2, H - pad.bottom + 10);
+    ctx.rotate(-Math.PI / 6);
+    ctx.fillStyle = '#8888aa';
+    ctx.font = '10px system-ui';
+    ctx.textAlign = 'right';
+    ctx.fillText(d.level, 0, 0);
+    ctx.restore();
+
+    barData.push({ x, y, w: barW, h: barH, d, color });
+  }
+
+  // Legend
+  ctx.fillStyle = '#8888aa';
+  ctx.font = '10px system-ui';
+  ctx.textAlign = 'left';
+  const lx = pad.left;
+  const ly = H - 8;
+  ctx.fillStyle = '#ffffff33';
+  ctx.fillRect(lx, ly - 8, 10, 10);
+  ctx.fillStyle = '#8888aa';
+  ctx.fillText('Profiles', lx + 14, ly);
+  ctx.fillStyle = '#00ff8866';
+  ctx.fillRect(lx + 80, ly - 8, 10, 10);
+  ctx.fillStyle = '#8888aa';
+  ctx.fillText('All Users', lx + 94, ly);
+
+  // Hover
+  const tooltip = document.getElementById('distTooltip');
+  canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (W / rect.width);
+    const my = (e.clientY - rect.top) * (H / rect.height);
+    let found = null;
+    for (const bd of barData) {
+      if (mx >= bd.x && mx <= bd.x + bd.w && my >= bd.y && my <= bd.y + bd.h) {
+        found = bd;
+        break;
+      }
+    }
+    if (!found) { tooltip.style.display = 'none'; return; }
+    const d = found.d;
+    const total = d.profileCount + d.nonProfileCount;
+    tooltip.innerHTML = `<strong>${d.level}</strong><br>Total: ${total.toLocaleString()}<br>Profiles: ${d.profileCount.toLocaleString()}<br>Non-profiles: ${d.nonProfileCount.toLocaleString()}`;
+    tooltip.style.display = 'block';
+    const canvasRect = canvas.getBoundingClientRect();
+    const tx = (e.clientX - canvasRect.left) + 10;
+    const ty = (e.clientY - canvasRect.top) - 40;
+    tooltip.style.left = tx + 'px';
+    tooltip.style.top = ty + 'px';
+  });
+  canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
 }
 
 // --- System Stats (from score distribution) ---
